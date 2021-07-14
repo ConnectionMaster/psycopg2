@@ -1,7 +1,7 @@
 # setup.py - distutils packaging
 #
 # Copyright (C) 2003-2019 Federico Di Gregorio  <fog@debian.org>
-# Copyright (C) 2020 The Psycopg Team
+# Copyright (C) 2020-2021 The Psycopg Team
 #
 # psycopg2 is free software: you can redistribute it and/or modify it
 # under the terms of the GNU Lesser General Public License as published
@@ -26,8 +26,6 @@ UPDATEs. psycopg2 also provide full asynchronous operations and support
 for coroutine libraries.
 """
 
-# Note: The setup.py must be compatible with both Python 2 and 3
-
 
 import os
 import sys
@@ -35,10 +33,8 @@ import re
 import subprocess
 from setuptools import setup, Extension
 from distutils.command.build_ext import build_ext
-from distutils.sysconfig import get_python_inc
 from distutils.ccompiler import get_default_compiler
 from distutils.errors import CompileError
-from distutils.util import get_platform
 
 try:
     import configparser
@@ -48,7 +44,7 @@ except ImportError:
 # Take a look at https://www.python.org/dev/peps/pep-0440/
 # for a consistent versioning pattern.
 
-PSYCOPG_VERSION = '2.9.dev0'
+PSYCOPG_VERSION = '2.9.1'
 
 
 # note: if you are changing the list of supported Python version please fix
@@ -58,13 +54,12 @@ Development Status :: 5 - Production/Stable
 Intended Audience :: Developers
 License :: OSI Approved :: GNU Library or Lesser General Public License (LGPL)
 Programming Language :: Python
-Programming Language :: Python :: 2
-Programming Language :: Python :: 2.7
 Programming Language :: Python :: 3
 Programming Language :: Python :: 3.6
 Programming Language :: Python :: 3.7
 Programming Language :: Python :: 3.8
 Programming Language :: Python :: 3.9
+Programming Language :: Python :: 3 :: Only
 Programming Language :: Python :: Implementation :: CPython
 Programming Language :: C
 Programming Language :: SQL
@@ -118,8 +113,8 @@ For further information please check the 'doc/src/install.rst' file (also at
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE)
         except OSError:
-            raise Warning("Unable to find 'pg_config' file in '%s'" %
-                          self.pg_config_exe)
+            raise Warning(
+                f"Unable to find 'pg_config' file in '{self.pg_config_exe}'")
         pg_config_process.stdin.close()
         result = pg_config_process.stdout.readline().strip()
         if not result:
@@ -174,7 +169,7 @@ For further information please check the 'doc/src/install.rst' file (also at
         try:
             pg_inst_list_key = winreg.OpenKey(reg,
                 'SOFTWARE\\PostgreSQL\\Installations')
-        except EnvironmentError:
+        except OSError:
             # No PostgreSQL installation, as best as we can tell.
             return None
 
@@ -182,7 +177,7 @@ For further information please check the 'doc/src/install.rst' file (also at
             # Determine the name of the first subkey, if any:
             try:
                 first_sub_key_name = winreg.EnumKey(pg_inst_list_key, 0)
-            except EnvironmentError:
+            except OSError:
                 return None
 
             pg_first_inst_key = winreg.OpenKey(reg,
@@ -200,12 +195,6 @@ For further information please check the 'doc/src/install.rst' file (also at
             pg_inst_base_dir, 'bin', 'pg_config.exe')
         if not os.path.exists(pg_config_path):
             return None
-
-        # Support unicode paths, if this version of Python provides the
-        # necessary infrastructure:
-        if sys.version_info[0] < 3:
-            pg_config_path = pg_config_path.encode(
-                sys.getfilesystemencoding())
 
         return pg_config_path
 
@@ -241,7 +230,6 @@ class psycopg_build_ext(build_ext):
     def initialize_options(self):
         build_ext.initialize_options(self)
         self.pgdir = None
-        self.mx_include_dir = None
         self.have_ssl = have_ssl
         self.static_libpq = static_libpq
         self.pg_config = None
@@ -306,30 +294,6 @@ For further information please check the 'doc/src/install.rst' file (also at
 
 """)
             raise
-
-        sysVer = sys.version_info[:2]
-
-        # For Python versions that use MSVC compiler 2008, re-insert the
-        # manifest into the resulting .pyd file.
-        if self.compiler_is_msvc() and sysVer == (2, 7):
-            platform = get_platform()
-            # Default to the x86 manifest
-            manifest = '_psycopg.vc9.x86.manifest'
-            if platform == 'win-amd64':
-                manifest = '_psycopg.vc9.amd64.manifest'
-            try:
-                ext_path = self.get_ext_fullpath(extension.name)
-            except AttributeError:
-                ext_path = os.path.join(self.build_lib,
-                        'psycopg2', '_psycopg.pyd')
-            # Make sure spawn() will work if compile() was never
-            # called. https://github.com/psycopg/psycopg2/issues/380
-            if not self.compiler.initialized:
-                self.compiler.initialize()
-            self.compiler.spawn(
-                ['mt.exe', '-nologo', '-manifest',
-                 os.path.join('psycopg', manifest),
-                 '-outputresource:%s;2' % ext_path])
 
     def finalize_win32(self):
         """Finalize build system configuration on win32 platform."""
@@ -411,6 +375,16 @@ For further information please check the 'doc/src/install.rst' file (also at
             self.library_dirs.append(pg_config_helper.query("libdir"))
             self.include_dirs.append(pg_config_helper.query("includedir"))
             self.include_dirs.append(pg_config_helper.query("includedir-server"))
+
+            # add includedirs from cppflags, libdirs from ldflags
+            for token in pg_config_helper.query("ldflags").split():
+                if token.startswith("-L"):
+                    self.library_dirs.append(token[2:])
+
+            for token in pg_config_helper.query("cppflags").split():
+                if token.startswith("-I"):
+                    self.include_dirs.append(token[2:])
+
             pgversion = pg_config_helper.query("version").split()[1]
 
             verre = re.compile(
@@ -430,8 +404,8 @@ For further information please check the 'doc/src/install.rst' file (also at
                 pgpatch = int(pgpatch)
             else:
                 sys.stderr.write(
-                    "Error: could not determine PostgreSQL version from '%s'"
-                    % pgversion)
+                    f"Error: could not determine PostgreSQL version from "
+                    f"'{pgversion}'")
                 sys.exit(1)
 
             define_macros.append(("PG_VERSION_NUM", "%d%02d%02d" %
@@ -453,7 +427,7 @@ For further information please check the 'doc/src/install.rst' file (also at
 
         except Warning:
             w = sys.exc_info()[1]  # work around py 2/3 different syntax
-            sys.stderr.write("Error: %s\n" % w)
+            sys.stderr.write(f"Error: {w}\n")
             sys.exit(1)
 
         if hasattr(self, "finalize_" + sys.platform):
@@ -523,30 +497,12 @@ depends = [
 parser = configparser.ConfigParser()
 parser.read('setup.cfg')
 
-# check for mx package
-mxincludedir = ''
-if parser.has_option('build_ext', 'mx_include_dir'):
-    mxincludedir = parser.get('build_ext', 'mx_include_dir')
-if not mxincludedir:
-    # look for mxDateTime.h; prefer one located in venv
-    candidate_dirs = [os.path.join(d, 'mx', 'DateTime', 'mxDateTime') for d in sys.path] \
-                   + [os.path.join(get_python_inc(plat_specific=1), "mx")]
-    candidate_dirs = [d for d in candidate_dirs if os.path.exists(os.path.join(d, 'mxDateTime.h'))] or ['']
-    mxincludedir = candidate_dirs[0]
-if mxincludedir.strip() and os.path.exists(mxincludedir):
-    # Build the support for mx: we will check at runtime if it can be imported
-    include_dirs.append(mxincludedir)
-    define_macros.append(('HAVE_MXDATETIME', '1'))
-    sources.append('adapter_mxdatetime.c')
-    depends.extend(['adapter_mxdatetime.h', 'typecast_mxdatetime.c'])
-    version_flags.append('mx')
-
 # generate a nice version string to avoid confusion when users report bugs
 version_flags.append('pq3')     # no more a choice
 version_flags.append('ext')     # no more a choice
 
 if version_flags:
-    PSYCOPG_VERSION_EX = PSYCOPG_VERSION + " (%s)" % ' '.join(version_flags)
+    PSYCOPG_VERSION_EX = PSYCOPG_VERSION + f" ({' '.join(version_flags)})"
 else:
     PSYCOPG_VERSION_EX = PSYCOPG_VERSION
 
@@ -598,7 +554,7 @@ setup(name="psycopg2",
       url="https://psycopg.org/",
       license="LGPL with exceptions",
       platforms=["any"],
-      python_requires='>=2.7,!=3.0.*,!=3.1.*,!=3.2.*,!=3.3.*,!=3.4.*,!=3.5.*',
+      python_requires='>=3.6',
       description=readme.split("\n")[0],
       long_description="\n".join(readme.split("\n")[2:]).lstrip(),
       classifiers=[x for x in classifiers.split("\n") if x],

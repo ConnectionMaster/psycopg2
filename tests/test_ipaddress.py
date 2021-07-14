@@ -3,7 +3,7 @@
 # test_ipaddress.py - tests for ipaddress support
 #
 # Copyright (C) 2016-2019 Daniele Varrazzo  <daniele.varrazzo@gmail.com>
-# Copyright (C) 2020 The Psycopg Team
+# Copyright (C) 2020-2021 The Psycopg Team
 #
 # psycopg2 is free software: you can redistribute it and/or modify it
 # under the terms of the GNU Lesser General Public License as published
@@ -15,7 +15,6 @@
 # FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Lesser General Public
 # License for more details.
 
-from __future__ import unicode_literals
 
 from . import testutils
 import unittest

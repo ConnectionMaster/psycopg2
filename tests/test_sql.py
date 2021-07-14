@@ -3,7 +3,7 @@
 # test_sql.py - tests for the psycopg2.sql module
 #
 # Copyright (C) 2016-2019 Daniele Varrazzo  <daniele.varrazzo@gmail.com>
-# Copyright (C) 2020 The Psycopg Team
+# Copyright (C) 2020-2021 The Psycopg Team
 #
 # psycopg2 is free software: you can redistribute it and/or modify it
 # under the terms of the GNU Lesser General Public License as published
@@ -31,7 +31,6 @@ from .testutils import (
 
 import psycopg2
 from psycopg2 import sql
-from psycopg2.compat import text_type
 
 
 class SqlFormatTests(ConnectingTestCase):
@@ -61,13 +60,6 @@ class SqlFormatTests(ConnectingTestCase):
         s1 = s.as_string(self.conn)
         self.assert_(isinstance(s1, str))
         self.assertEqual(s1, 'select "field" from "table"')
-
-    def test_unicode(self):
-        s = sql.SQL(u"select {0} from {1}").format(
-            sql.Identifier(u'field'), sql.Identifier('table'))
-        s1 = s.as_string(self.conn)
-        self.assert_(isinstance(s1, text_type))
-        self.assertEqual(s1, u'select "field" from "table"')
 
     def test_compose_literal(self):
         s = sql.SQL("select {0};").format(sql.Literal(dt.date(2016, 12, 31)))
@@ -111,7 +103,7 @@ class SqlFormatTests(ConnectingTestCase):
         self.assertRaises(ValueError, sql.SQL("select {a:<};").format, a=10)
 
     def test_must_be_adaptable(self):
-        class Foo(object):
+        class Foo:
             pass
 
         self.assertRaises(psycopg2.ProgrammingError,
@@ -182,7 +174,7 @@ class IdentifierTests(ConnectingTestCase):
 
     def test_init(self):
         self.assert_(isinstance(sql.Identifier('foo'), sql.Identifier))
-        self.assert_(isinstance(sql.Identifier(u'foo'), sql.Identifier))
+        self.assert_(isinstance(sql.Identifier('foo'), sql.Identifier))
         self.assert_(isinstance(sql.Identifier('foo', 'bar', 'baz'), sql.Identifier))
         self.assertRaises(TypeError, sql.Identifier)
         self.assertRaises(TypeError, sql.Identifier, 10)
@@ -231,7 +223,7 @@ class LiteralTests(ConnectingTestCase):
 
     def test_init(self):
         self.assert_(isinstance(sql.Literal('foo'), sql.Literal))
-        self.assert_(isinstance(sql.Literal(u'foo'), sql.Literal))
+        self.assert_(isinstance(sql.Literal('foo'), sql.Literal))
         self.assert_(isinstance(sql.Literal(b'foo'), sql.Literal))
         self.assert_(isinstance(sql.Literal(42), sql.Literal))
         self.assert_(isinstance(
@@ -256,7 +248,7 @@ class LiteralTests(ConnectingTestCase):
         self.assert_(sql.Literal('foo') != sql.SQL('foo'))
 
     def test_must_be_adaptable(self):
-        class Foo(object):
+        class Foo:
             pass
 
         self.assertRaises(psycopg2.ProgrammingError,
@@ -269,7 +261,7 @@ class SQLTests(ConnectingTestCase):
 
     def test_init(self):
         self.assert_(isinstance(sql.SQL('foo'), sql.SQL))
-        self.assert_(isinstance(sql.SQL(u'foo'), sql.SQL))
+        self.assert_(isinstance(sql.SQL('foo'), sql.SQL))
         self.assertRaises(TypeError, sql.SQL, 10)
         self.assertRaises(TypeError, sql.SQL, dt.date(2016, 12, 31))
 
@@ -381,25 +373,25 @@ class PlaceholderTest(ConnectingTestCase):
         self.assertEqual(sql.Placeholder('foo').name, 'foo')
 
     def test_repr(self):
-        self.assert_(str(sql.Placeholder()), 'Placeholder()')
-        self.assert_(repr(sql.Placeholder()), 'Placeholder()')
-        self.assert_(sql.Placeholder().as_string(self.conn), '%s')
+        self.assertEqual(str(sql.Placeholder()), 'Placeholder()')
+        self.assertEqual(repr(sql.Placeholder()), 'Placeholder()')
+        self.assertEqual(sql.Placeholder().as_string(self.conn), '%s')
 
     def test_repr_name(self):
-        self.assert_(str(sql.Placeholder('foo')), "Placeholder('foo')")
-        self.assert_(repr(sql.Placeholder('foo')), "Placeholder('foo')")
-        self.assert_(sql.Placeholder('foo').as_string(self.conn), '%(foo)s')
+        self.assertEqual(str(sql.Placeholder('foo')), "Placeholder('foo')")
+        self.assertEqual(repr(sql.Placeholder('foo')), "Placeholder('foo')")
+        self.assertEqual(sql.Placeholder('foo').as_string(self.conn), '%(foo)s')
 
     def test_bad_name(self):
         self.assertRaises(ValueError, sql.Placeholder, ')')
 
     def test_eq(self):
-        self.assert_(sql.Placeholder('foo') == sql.Placeholder('foo'))
-        self.assert_(sql.Placeholder('foo') != sql.Placeholder('bar'))
-        self.assert_(sql.Placeholder('foo') != 'foo')
-        self.assert_(sql.Placeholder() == sql.Placeholder())
-        self.assert_(sql.Placeholder('foo') != sql.Placeholder())
-        self.assert_(sql.Placeholder('foo') != sql.Literal('foo'))
+        self.assertEqual(sql.Placeholder('foo'), sql.Placeholder('foo'))
+        self.assertNotEqual(sql.Placeholder('foo'), sql.Placeholder('bar'))
+        self.assertNotEqual(sql.Placeholder('foo'), 'foo')
+        self.assertEqual(sql.Placeholder(), sql.Placeholder())
+        self.assertNotEqual(sql.Placeholder('foo'), sql.Placeholder())
+        self.assertNotEqual(sql.Placeholder('foo'), sql.Literal('foo'))
 
 
 class ValuesTest(ConnectingTestCase):

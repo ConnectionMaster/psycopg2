@@ -3,7 +3,7 @@
 # types_extras.py - tests for extras types conversions
 #
 # Copyright (C) 2008-2019 Federico Di Gregorio  <fog@debian.org>
-# Copyright (C) 2020 The Psycopg Team
+# Copyright (C) 2020-2021 The Psycopg Team
 #
 # psycopg2 is free software: you can redistribute it and/or modify it
 # under the terms of the GNU Lesser General Public License as published
@@ -20,13 +20,13 @@ import json
 import uuid
 import warnings
 from decimal import Decimal
-from datetime import date, datetime
+from datetime import date, datetime, timedelta, timezone
 from functools import wraps
 from pickle import dumps, loads
 
 import unittest
-from .testutils import (PY2, text_type, skip_if_no_uuid, skip_before_postgres,
-    ConnectingTestCase, py3_raises_typeerror, slow, skip_from_python,
+from .testutils import (skip_if_no_uuid, skip_before_postgres,
+    ConnectingTestCase, raises_typeerror, slow,
     restore_types, skip_if_crdb, crdb_version)
 
 import psycopg2
@@ -38,7 +38,6 @@ from psycopg2.extras import (
     Inet, Json, NumericRange, Range, RealDictConnection,
     register_composite, register_hstore, register_range,
 )
-from psycopg2.tz import FixedOffsetTimezone
 
 
 class TypesExtrasTests(ConnectingTestCase):
@@ -110,13 +109,13 @@ class TypesExtrasTests(ConnectingTestCase):
         self.assertQuotedEqual(a.getquoted(), b"'192.168.1.0/24'::inet")
 
         # adapts ok with unicode too
-        i = Inet(u"192.168.1.0/24")
+        i = Inet("192.168.1.0/24")
         a = psycopg2.extensions.adapt(i)
         a.prepare(self.conn)
         self.assertQuotedEqual(a.getquoted(), b"'192.168.1.0/24'::inet")
 
     def test_adapt_fail(self):
-        class Foo(object):
+        class Foo:
             pass
         self.assertRaises(psycopg2.ProgrammingError,
             psycopg2.extensions.adapt, Foo(), ext.ISQLQuote, None)
@@ -151,7 +150,7 @@ class HstoreTestCase(ConnectingTestCase):
 
         o = {'a': '1', 'b': "'", 'c': None}
         if self.conn.encoding == 'UTF8':
-            o['d'] = u'\xe0'
+            o['d'] = '\xe0'
 
         a = HstoreAdapter(o)
         a.prepare(self.conn)
@@ -166,7 +165,7 @@ class HstoreTestCase(ConnectingTestCase):
         self.assertQuotedEqual(ii[1], b"('b' => '''')")
         self.assertQuotedEqual(ii[2], b"('c' => NULL)")
         if 'd' in o:
-            encc = u'\xe0'.encode(psycopg2.extensions.encodings[self.conn.encoding])
+            encc = '\xe0'.encode(psycopg2.extensions.encodings[self.conn.encoding])
             self.assertQuotedEqual(ii[3], b"('d' => '" + encc + b"')")
 
     def test_adapt_9(self):
@@ -175,7 +174,7 @@ class HstoreTestCase(ConnectingTestCase):
 
         o = {'a': '1', 'b': "'", 'c': None}
         if self.conn.encoding == 'UTF8':
-            o['d'] = u'\xe0'
+            o['d'] = '\xe0'
 
         a = HstoreAdapter(o)
         a.prepare(self.conn)
@@ -197,7 +196,7 @@ class HstoreTestCase(ConnectingTestCase):
         self.assertQuotedEqual(ii[2][0], b"'c'")
         self.assertQuotedEqual(ii[2][1], b"NULL")
         if 'd' in o:
-            encc = u'\xe0'.encode(psycopg2.extensions.encodings[self.conn.encoding])
+            encc = '\xe0'.encode(psycopg2.extensions.encodings[self.conn.encoding])
             self.assertQuotedEqual(ii[3][0], b"'d'")
             self.assertQuotedEqual(ii[3][1], b"'" + encc + b"'")
 
@@ -250,19 +249,6 @@ class HstoreTestCase(ConnectingTestCase):
         self.assertEqual(t[2], {'a': 'b'})
 
     @skip_if_no_hstore
-    @skip_from_python(3)
-    def test_register_unicode(self):
-        register_hstore(self.conn, unicode=True)
-        cur = self.conn.cursor()
-        cur.execute("select null::hstore, ''::hstore, 'a => b'::hstore")
-        t = cur.fetchone()
-        self.assert_(t[0] is None)
-        self.assertEqual(t[1], {})
-        self.assertEqual(t[2], {u'a': u'b'})
-        self.assert_(isinstance(t[2].keys()[0], unicode))
-        self.assert_(isinstance(t[2].values()[0], unicode))
-
-    @skip_if_no_hstore
     @restore_types
     def test_register_globally(self):
         HstoreAdapter.get_oids(self.conn)
@@ -297,35 +283,9 @@ class HstoreTestCase(ConnectingTestCase):
         ok({''.join(ab): ''.join(ab)})
 
         self.conn.set_client_encoding('latin1')
-        if PY2:
-            ab = map(chr, range(32, 127) + range(160, 255))
-        else:
-            ab = bytes(list(range(32, 127)) + list(range(160, 255))).decode('latin1')
+        ab = bytes(list(range(32, 127)) + list(range(160, 255))).decode('latin1')
 
         ok({''.join(ab): ''.join(ab)})
-        ok(dict(zip(ab, ab)))
-
-    @skip_if_no_hstore
-    @skip_from_python(3)
-    def test_roundtrip_unicode(self):
-        register_hstore(self.conn, unicode=True)
-        cur = self.conn.cursor()
-
-        def ok(d):
-            cur.execute("select %s", (d,))
-            d1 = cur.fetchone()[0]
-            self.assertEqual(len(d), len(d1))
-            for k, v in d1.iteritems():
-                self.assert_(k in d, k)
-                self.assertEqual(d[k], v)
-                self.assert_(isinstance(k, unicode))
-                self.assert_(v is None or isinstance(v, unicode))
-
-        ok({})
-        ok({'a': 'b', 'c': None, 'd': u'\u20ac', u'\u2603': 'e'})
-
-        ab = map(unichr, range(1, 1024))
-        ok({u''.join(ab): u''.join(ab)})
         ok(dict(zip(ab, ab)))
 
     @skip_if_no_hstore
@@ -356,10 +316,7 @@ class HstoreTestCase(ConnectingTestCase):
         ds.append({''.join(ab): ''.join(ab)})
 
         self.conn.set_client_encoding('latin1')
-        if PY2:
-            ab = map(chr, range(32, 127) + range(160, 255))
-        else:
-            ab = bytes(list(range(32, 127)) + list(range(160, 255))).decode('latin1')
+        ab = bytes(list(range(32, 127)) + list(range(160, 255))).decode('latin1')
 
         ds.append({''.join(ab): ''.join(ab)})
         ds.append(dict(zip(ab, ab)))
@@ -443,7 +400,7 @@ class AdaptTypeTestCase(ConnectingTestCase):
     def test_none_fast_path(self):
         # the None adapter is not actually invoked in regular adaptation
 
-        class WonkyAdapter(object):
+        class WonkyAdapter:
             def __init__(self, obj):
                 pass
 
@@ -753,11 +710,11 @@ class AdaptTypeTestCase(ConnectingTestCase):
     def _create_type(self, name, fields):
         curs = self.conn.cursor()
         try:
-            curs.execute("drop type %s cascade;" % name)
+            curs.execute(f"drop type {name} cascade;")
         except psycopg2.ProgrammingError:
             self.conn.rollback()
 
-        curs.execute("create type %s as (%s);" % (name,
+        curs.execute("create type {} as ({});".format(name,
             ", ".join(["%s %s" % p for p in fields])))
         if '.' in name:
             schema, name = name.split('.')
@@ -792,7 +749,7 @@ def skip_if_no_json_type(f):
 class JsonTestCase(ConnectingTestCase):
     def test_adapt(self):
         objs = [None, "te'xt", 123, 123.45,
-            u'\xe0\u20ac', ['a', 100], {'a': 100}]
+            '\xe0\u20ac', ['a', 100], {'a': 100}]
 
         curs = self.conn.cursor()
         for obj in enumerate(objs):
@@ -947,7 +904,7 @@ class JsonTestCase(ConnectingTestCase):
         self.assertEqual(data['b'], None)
 
     def test_str(self):
-        snowman = u"\u2603"
+        snowman = "\u2603"
         obj = {'a': [1, 2, snowman]}
         j = psycopg2.extensions.adapt(psycopg2.extras.Json(obj))
         s = str(j)
@@ -1238,9 +1195,9 @@ class RangeTestCase(unittest.TestCase):
         self.assert_(not Range() < Range())
         self.assert_(not Range(empty=True) < Range(empty=True))
         self.assert_(not Range(1, 2) < Range(1, 2))
-        with py3_raises_typeerror():
+        with raises_typeerror():
             self.assert_(1 < Range(1, 2))
-        with py3_raises_typeerror():
+        with raises_typeerror():
             self.assert_(not Range(1, 2) < 1)
 
     def test_gt_ordering(self):
@@ -1253,9 +1210,9 @@ class RangeTestCase(unittest.TestCase):
         self.assert_(not Range() > Range())
         self.assert_(not Range(empty=True) > Range(empty=True))
         self.assert_(not Range(1, 2) > Range(1, 2))
-        with py3_raises_typeerror():
+        with raises_typeerror():
             self.assert_(not 1 > Range(1, 2))
-        with py3_raises_typeerror():
+        with raises_typeerror():
             self.assert_(Range(1, 2) > 1)
 
     def test_le_ordering(self):
@@ -1268,9 +1225,9 @@ class RangeTestCase(unittest.TestCase):
         self.assert_(Range() <= Range())
         self.assert_(Range(empty=True) <= Range(empty=True))
         self.assert_(Range(1, 2) <= Range(1, 2))
-        with py3_raises_typeerror():
+        with raises_typeerror():
             self.assert_(1 <= Range(1, 2))
-        with py3_raises_typeerror():
+        with raises_typeerror():
             self.assert_(not Range(1, 2) <= 1)
 
     def test_ge_ordering(self):
@@ -1283,9 +1240,9 @@ class RangeTestCase(unittest.TestCase):
         self.assert_(Range() >= Range())
         self.assert_(Range(empty=True) >= Range(empty=True))
         self.assert_(Range(1, 2) >= Range(1, 2))
-        with py3_raises_typeerror():
+        with raises_typeerror():
             self.assert_(not 1 >= Range(1, 2))
-        with py3_raises_typeerror():
+        with raises_typeerror():
             self.assert_(Range(1, 2) >= 1)
 
     def test_pickling(self):
@@ -1303,20 +1260,20 @@ class RangeTestCase(unittest.TestCase):
         # Using the "u" prefix to make sure we have the proper return types in
         # Python2
         expected = [
-            u'(0, 4)',
-            u'[0, 4]',
-            u'(0, 4]',
-            u'[0, 4)',
-            u'empty',
+            '(0, 4)',
+            '[0, 4]',
+            '(0, 4]',
+            '[0, 4)',
+            'empty',
         ]
         results = []
 
         for bounds in ('()', '[]', '(]', '[)'):
             r = Range(0, 4, bounds=bounds)
-            results.append(text_type(r))
+            results.append(str(r))
 
         r = Range(empty=True)
-        results.append(text_type(r))
+        results.append(str(r))
         self.assertEqual(results, expected)
 
     def test_str_datetime(self):
@@ -1324,11 +1281,11 @@ class RangeTestCase(unittest.TestCase):
         Date-Time ranges should return a human-readable string as well on
         string conversion.
         '''
-        tz = FixedOffsetTimezone(-5 * 60, "EST")
+        tz = timezone(timedelta(minutes=-5 * 60), "EST")
         r = DateTimeTZRange(datetime(2010, 1, 1, tzinfo=tz),
                             datetime(2011, 1, 1, tzinfo=tz))
-        expected = u'[2010-01-01 00:00:00-05:00, 2011-01-01 00:00:00-05:00)'
-        result = text_type(r)
+        expected = '[2010-01-01 00:00:00-05:00, 2011-01-01 00:00:00-05:00)'
+        result = str(r)
         self.assertEqual(result, expected)
 
 
@@ -1342,14 +1299,14 @@ class RangeCasterTestCase(ConnectingTestCase):
     def test_cast_null(self):
         cur = self.conn.cursor()
         for type in self.builtin_ranges:
-            cur.execute("select NULL::%s" % type)
+            cur.execute(f"select NULL::{type}")
             r = cur.fetchone()[0]
             self.assertEqual(r, None)
 
     def test_cast_empty(self):
         cur = self.conn.cursor()
         for type in self.builtin_ranges:
-            cur.execute("select 'empty'::%s" % type)
+            cur.execute(f"select 'empty'::{type}")
             r = cur.fetchone()[0]
             self.assert_(isinstance(r, Range), type)
             self.assert_(r.isempty)
@@ -1357,7 +1314,7 @@ class RangeCasterTestCase(ConnectingTestCase):
     def test_cast_inf(self):
         cur = self.conn.cursor()
         for type in self.builtin_ranges:
-            cur.execute("select '(,)'::%s" % type)
+            cur.execute(f"select '(,)'::{type}")
             r = cur.fetchone()[0]
             self.assert_(isinstance(r, Range), type)
             self.assert_(not r.isempty)
@@ -1367,7 +1324,7 @@ class RangeCasterTestCase(ConnectingTestCase):
     def test_cast_numbers(self):
         cur = self.conn.cursor()
         for type in ('int4range', 'int8range'):
-            cur.execute("select '(10,20)'::%s" % type)
+            cur.execute(f"select '(10,20)'::{type}")
             r = cur.fetchone()[0]
             self.assert_(isinstance(r, NumericRange))
             self.assert_(not r.isempty)
@@ -1419,9 +1376,9 @@ class RangeCasterTestCase(ConnectingTestCase):
 
     def test_cast_timestamptz(self):
         cur = self.conn.cursor()
-        ts1 = datetime(2000, 1, 1, tzinfo=FixedOffsetTimezone(600))
+        ts1 = datetime(2000, 1, 1, tzinfo=timezone(timedelta(minutes=600)))
         ts2 = datetime(2000, 12, 31, 23, 59, 59, 999,
-                       tzinfo=FixedOffsetTimezone(600))
+                       tzinfo=timezone(timedelta(minutes=600)))
         cur.execute("select tstzrange(%s, %s, '[]')", (ts1, ts2))
         r = cur.fetchone()[0]
         self.assert_(isinstance(r, DateTimeTZRange))
@@ -1507,9 +1464,9 @@ class RangeCasterTestCase(ConnectingTestCase):
         self.assert_(isinstance(r1, DateTimeRange))
         self.assert_(r1.isempty)
 
-        ts1 = datetime(2000, 1, 1, tzinfo=FixedOffsetTimezone(600))
+        ts1 = datetime(2000, 1, 1, tzinfo=timezone(timedelta(minutes=600)))
         ts2 = datetime(2000, 12, 31, 23, 59, 59, 999,
-                       tzinfo=FixedOffsetTimezone(600))
+                       tzinfo=timezone(timedelta(minutes=600)))
         r = DateTimeTZRange(ts1, ts2, '(]')
         cur.execute("select %s", (r,))
         r1 = cur.fetchone()[0]

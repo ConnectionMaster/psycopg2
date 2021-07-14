@@ -2,7 +2,7 @@
  *
  * Copyright (C) 2008  Canonical Ltd.
  * Copyright (C) 2010-2019  Daniele Varrazzo <daniele.varrazzo@gmail.com>
- * Copyright (C) 2020 The Psycopg Team
+ * Copyright (C) 2020-2021 The Psycopg Team
  *
  * This file is part of psycopg.
  *
@@ -598,7 +598,7 @@ xid_recover(PyObject *conn)
 
     /* curs = conn.cursor()
      * (sort of. Use the real cursor in case the connection returns
-     * somenthing non-dbapi -- see ticket #114) */
+     * something non-dbapi -- see ticket #114) */
     if (!(curs = PyObject_CallFunctionObjArgs(
         (PyObject *)&cursorType, conn, NULL))) { goto exit; }
 

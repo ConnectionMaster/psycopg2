@@ -1,7 +1,7 @@
 /* connection.h - definition for the psycopg connection type
  *
  * Copyright (C) 2003-2019 Federico Di Gregorio <fog@debian.org>
- * Copyright (C) 2020 The Psycopg Team
+ * Copyright (C) 2020-2021 The Psycopg Team
  *
  * This file is part of psycopg.
  *
@@ -145,6 +145,9 @@ struct connectionObject {
 
     /* the pid this connection was created into */
     pid_t procpid;
+
+    /* inside a with block */
+    int entered;
 };
 
 /* map isolation level values into a numeric const */

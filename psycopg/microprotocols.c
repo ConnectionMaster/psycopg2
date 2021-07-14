@@ -1,7 +1,7 @@
 /* microprotocols.c - minimalist and non-validating protocols implementation
  *
  * Copyright (C) 2003-2019 Federico Di Gregorio <fog@debian.org>
- * Copyright (C) 2020 The Psycopg Team
+ * Copyright (C) 2020-2021 The Psycopg Team
  *
  * This file is part of psycopg.
  *
@@ -92,11 +92,7 @@ _get_superclass_adapter(PyObject *obj, PyObject *proto)
     Py_ssize_t i, ii;
 
     type = Py_TYPE(obj);
-    if (!(
-#if PY_2
-        (Py_TPFLAGS_HAVE_CLASS & type->tp_flags) &&
-#endif
-        type->tp_mro)) {
+    if (!(type->tp_mro)) {
         /* has no mro */
         return Py_None;
     }

@@ -1,7 +1,7 @@
 /* pgcasts_basic.c - basic typecasting functions to python types
  *
  * Copyright (C) 2001-2019 Federico Di Gregorio <fog@debian.org>
- * Copyright (C) 2020 The Psycopg Team
+ * Copyright (C) 2020-2021 The Psycopg Team
  *
  * This file is part of psycopg.
  *
@@ -26,22 +26,7 @@
 
 /** INTEGER - cast normal integers (4 bytes) to python int **/
 
-#if PY_2
-static PyObject *
-typecast_INTEGER_cast(const char *s, Py_ssize_t len, PyObject *curs)
-{
-    char buffer[12];
-
-    if (s == NULL) { Py_RETURN_NONE; }
-    if (s[len] != '\0') {
-        strncpy(buffer, s, (size_t) len); buffer[len] = '\0';
-        s = buffer;
-    }
-    return PyInt_FromString((char *)s, NULL, 0);
-}
-#else
 #define typecast_INTEGER_cast typecast_LONGINTEGER_cast
-#endif
 
 /** LONGINTEGER - cast long integers (8 bytes) to python long **/
 
@@ -67,11 +52,7 @@ typecast_FLOAT_cast(const char *s, Py_ssize_t len, PyObject *curs)
 
     if (s == NULL) { Py_RETURN_NONE; }
     if (!(str = Text_FromUTF8AndSize(s, len))) { return NULL; }
-#if PY_2
-    flo = PyFloat_FromString(str, NULL);
-#else
     flo = PyFloat_FromString(str);
-#endif
     Py_DECREF(str);
     return flo;
 }
@@ -103,11 +84,7 @@ typecast_UNICODE_cast(const char *s, Py_ssize_t len, PyObject *curs)
 
 /** STRING - cast strings of any type to python string **/
 
-#if PY_2
-#define typecast_STRING_cast typecast_BYTES_cast
-#else
 #define typecast_STRING_cast typecast_UNICODE_cast
-#endif
 
 
 /** BOOLEAN - cast boolean value into right python object **/

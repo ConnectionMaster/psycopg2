@@ -1,7 +1,7 @@
 /* adapter_float.c - psycopg pfloat type wrapper implementation
  *
  * Copyright (C) 2003-2019 Federico Di Gregorio <fog@debian.org>
- * Copyright (C) 2020 The Psycopg Team
+ * Copyright (C) 2020-2021 The Psycopg Team
  *
  * This file is part of psycopg.
  *
@@ -54,8 +54,7 @@ pfloat_getquoted(pfloatObject *self, PyObject *args)
             goto exit;
         }
 
-#if PY_3
-        /* unicode to bytes in Py3 */
+        /* unicode to bytes */
         {
             PyObject *tmp = PyUnicode_AsUTF8String(rv);
             Py_DECREF(rv);
@@ -63,7 +62,6 @@ pfloat_getquoted(pfloatObject *self, PyObject *args)
                 goto exit;
             }
         }
-#endif
 
         if ('-' == Bytes_AS_STRING(rv)[0]) {
             /* Prepend a space in front of negative numbers (ticket #57) */

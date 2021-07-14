@@ -5,7 +5,7 @@ The script can be run at a new PostgreSQL release to refresh the module.
 """
 
 # Copyright (C) 2018-2019 Daniele Varrazzo  <daniele.varrazzo@gmail.com>
-# Copyright (C) 2020 The Psycopg Team
+# Copyright (C) 2020-2021 The Psycopg Team
 #
 # psycopg2 is free software: you can redistribute it and/or modify it
 # under the terms of the GNU Lesser General Public License as published
@@ -16,7 +16,6 @@ The script can be run at a new PostgreSQL release to refresh the module.
 # ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
 # FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Lesser General Public
 # License for more details.
-from __future__ import print_function
 
 import os
 import re
@@ -61,7 +60,7 @@ def parse_errors_txt(url):
         m = re.match(r"(.....)\s+(?:E|W|S)\s+ERRCODE_(\S+)(?:\s+(\S+))?$", line)
         if m:
             errcode, macro, spec = m.groups()
-            # skip errcodes without specs as they are not publically visible
+            # skip errcodes without specs as they are not publicly visible
             if not spec:
                 continue
             errlabel = spec.upper()
@@ -69,7 +68,7 @@ def parse_errors_txt(url):
             continue
 
         # We don't expect anything else
-        raise ValueError("unexpected line:\n%s" % line)
+        raise ValueError(f"unexpected line:\n{line}")
 
     return classes, errors
 
@@ -86,9 +85,7 @@ def fetch_errors(versions):
     for version in versions:
         print(version, file=sys.stderr)
         tver = tuple(map(int, version.split()[0].split('.')))
-        tag = '%s%s_STABLE' % (
-            (tver[0] >= 10 and 'REL_' or 'REL'),
-            version.replace('.', '_'))
+        tag = f"{tver[0] >= 10 and 'REL_' or 'REL'}{version.replace('.', '_')}_STABLE"
         c1, e1 = parse_errors_txt(errors_txt_url % tag)
         classes.update(c1)
 
@@ -119,7 +116,7 @@ def generate_module_data(classes, errors):
             # success and warning - never raised
             continue
 
-        yield "\n/* %s */" % clslabel
+        yield f"\n/* {clslabel} */"
 
         for errcode, errlabel in sorted(errors[clscode].items()):
             if errcode in specific:
@@ -127,7 +124,7 @@ def generate_module_data(classes, errors):
             else:
                 clsname = errlabel.title().replace('_', '')
             if clsname in seen:
-                raise Exception("class already existing: %s" % clsname)
+                raise Exception(f"class already existing: {clsname}")
             seen.add(clsname)
 
             yield tmpl % {

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 #
 # Psycopg documentation build configuration file, created by
 # sphinx-quickstart on Sun Feb  7 13:48:41 2010.
@@ -48,9 +47,9 @@ source_suffix = '.rst'
 master_doc = 'index'
 
 # General information about the project.
-project = u'Psycopg'
+project = 'Psycopg'
 copyright = (
-    u'2001-2020, Federico Di Gregorio, Daniele Varrazzo, The Psycopg Team'
+    '2001-2021, Federico Di Gregorio, Daniele Varrazzo, The Psycopg Team'
 )
 
 # The version info for the project you're documenting, acts as replacement for
@@ -128,8 +127,6 @@ rst_epilog = """
 
 .. _transaction isolation level:
     https://www.postgresql.org/docs/current/static/transaction-iso.html
-
-.. _mx.DateTime: https://www.egenix.com/products/python/mxBase/mxDateTime/
 
 .. |MVCC| replace:: :abbr:`MVCC (Multiversion concurrency control)`
 """
@@ -235,8 +232,8 @@ latex_documents = [
     (
         'index',
         'psycopg.tex',
-        u'Psycopg Documentation',
-        u'Federico Di Gregorio',
+        'Psycopg Documentation',
+        'Federico Di Gregorio',
         'manual',
     )
 ]

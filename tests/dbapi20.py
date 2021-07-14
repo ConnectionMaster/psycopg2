@@ -64,7 +64,7 @@ import sys
 # - self.populate is now self._populate(), so if a driver stub
 #   overrides self.ddl1 this change propagates
 # - VARCHAR columns now have a width, which will hopefully make the
-#   DDL even more portible (this will be reversed if it causes more problems)
+#   DDL even more portable (this will be reversed if it causes more problems)
 # - cursor.rowcount being checked after various execute and fetchXXX methods
 # - Check for fetchall and fetchmany returning empty lists after results
 #   are exhausted (already checking for empty lists if select retrieved
@@ -76,7 +76,7 @@ class DatabaseAPI20Test(unittest.TestCase):
     ''' Test a database self.driver for DB API 2.0 compatibility.
         This implementation tests Gadfly, but the TestCase
         is structured so that other self.drivers can subclass this
-        test case to ensure compiliance with the DB-API. It is
+        test case to ensure compliance with the DB-API. It is
         expected that this TestCase may be expanded in the future
         if ambiguities or edge conditions are discovered.
 
@@ -185,13 +185,8 @@ class DatabaseAPI20Test(unittest.TestCase):
     def test_Exceptions(self):
         # Make sure required exceptions exist, and are in the
         # defined hierarchy.
-        if sys.version[0] == '3': #under Python 3 StardardError no longer exists
-            self.failUnless(issubclass(self.driver.Warning,Exception))
-            self.failUnless(issubclass(self.driver.Error,Exception))
-        else:
-            self.failUnless(issubclass(self.driver.Warning,StandardError))
-            self.failUnless(issubclass(self.driver.Error,StandardError))
-
+        self.failUnless(issubclass(self.driver.Warning,Exception))
+        self.failUnless(issubclass(self.driver.Error,Exception))
         self.failUnless(
             issubclass(self.driver.InterfaceError,self.driver.Error)
             )
@@ -547,7 +542,7 @@ class DatabaseAPI20Test(unittest.TestCase):
             tests.
         '''
         populate = [
-            "insert into %sbooze values ('%s')" % (self.table_prefix,s)
+            f"insert into {self.table_prefix}booze values ('{s}')"
                 for s in self.samples
             ]
         return populate

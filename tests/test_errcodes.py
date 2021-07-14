@@ -3,7 +3,7 @@
 # test_errcodes.py - unit test for psycopg2.errcodes module
 #
 # Copyright (C) 2015-2019 Daniele Varrazzo  <daniele.varrazzo@gmail.com>
-# Copyright (C) 2020 The Psycopg Team
+# Copyright (C) 2020-2021 The Psycopg Team
 #
 # psycopg2 is free software: you can redistribute it and/or modify it
 # under the terms of the GNU Lesser General Public License as published
@@ -53,7 +53,7 @@ class ErrocodeTests(ConnectingTestCase):
 
             if errs:
                 self.fail(
-                    "raised %s errors in %s cycles (first is %s %s)" % (
+                    "raised {} errors in {} cycles (first is {} {})".format(
                         len(errs), MAX_CYCLES,
                         errs[0].__class__.__name__, errs[0]))
 

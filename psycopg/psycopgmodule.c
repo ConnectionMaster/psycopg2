@@ -1,7 +1,7 @@
 /* psycopgmodule.c - psycopg module (will import other C classes)
  *
  * Copyright (C) 2003-2019 Federico Di Gregorio <fog@debian.org>
- * Copyright (C) 2020 The Psycopg Team
+ * Copyright (C) 2020-2021 The Psycopg Team
  *
  * This file is part of psycopg.
  *
@@ -52,11 +52,6 @@
 #include "psycopg/adapter_asis.h"
 #include "psycopg/adapter_list.h"
 #include "psycopg/typecast_binary.h"
-
-#ifdef HAVE_MXDATETIME
-#include <mxDateTime.h>
-#include "psycopg/adapter_mxdatetime.h"
-#endif
 
 /* some module-level variables, like the datetime module */
 #include <datetime.h>
@@ -309,11 +304,6 @@ adapters_init(PyObject *module)
     if (0 > microprotocols_add(&PyFloat_Type, NULL, (PyObject*)&pfloatType)) {
         goto exit;
     }
-#if PY_2
-    if (0 > microprotocols_add(&PyInt_Type, NULL, (PyObject*)&pintType)) {
-        goto exit;
-    }
-#endif
     if (0 > microprotocols_add(&PyLong_Type, NULL, (PyObject*)&pintType)) {
         goto exit;
     }
@@ -322,25 +312,14 @@ adapters_init(PyObject *module)
     }
 
     /* strings */
-#if PY_2
-    if (0 > microprotocols_add(&PyString_Type, NULL, (PyObject*)&qstringType)) {
-        goto exit;
-    }
-#endif
     if (0 > microprotocols_add(&PyUnicode_Type, NULL, (PyObject*)&qstringType)) {
         goto exit;
     }
 
     /* binary */
-#if PY_2
-    if (0 > microprotocols_add(&PyBuffer_Type, NULL, (PyObject*)&binaryType)) {
-        goto exit;
-    }
-#else
     if (0 > microprotocols_add(&PyBytes_Type, NULL, (PyObject*)&binaryType)) {
         goto exit;
     }
-#endif
 
     if (0 > microprotocols_add(&PyByteArray_Type, NULL, (PyObject*)&binaryType)) {
         goto exit;
@@ -373,30 +352,6 @@ adapters_init(PyObject *module)
     if (!(obj = PyMapping_GetItemString(dict, "IntervalFromPy"))) { goto exit; }
     if (0 > microprotocols_add(PyDateTimeAPI->DeltaType, NULL, obj)) { goto exit; }
     Py_CLEAR(obj);
-
-#ifdef HAVE_MXDATETIME
-    /* As above, we use the callable objects from the psycopg module.
-       These object are not be available at runtime if mx.DateTime import
-       failed (e.g. it was available at build time but not at runtime). */
-    if (PyMapping_HasKeyString(dict, "TimestampFromMx")) {
-        if (!(obj = PyMapping_GetItemString(dict, "TimestampFromMx"))) {
-            goto exit;
-        }
-        if (0 > microprotocols_add(mxDateTime.DateTime_Type, NULL, obj)) {
-            goto exit;
-        }
-        Py_CLEAR(obj);
-
-        /* if we found the above, we have this too. */
-        if (!(obj = PyMapping_GetItemString(dict, "TimeFromMx"))) {
-            goto exit;
-        }
-        if (0 > microprotocols_add(mxDateTime.DateTimeDelta_Type, NULL, obj)) {
-            goto exit;
-        }
-        Py_CLEAR(obj);
-    }
-#endif
 
     /* Success! */
     rv = 0;
@@ -608,6 +563,10 @@ encodings_init(PyObject *module)
     int rv = -1;
 
     Dprintf("psycopgmodule: initializing encodings table");
+    if (psycoEncodings) {
+        Dprintf("encodings_init(): already called");
+        return 0;
+    }
 
     if (!(psycoEncodings = PyDict_New())) { goto exit; }
     Py_INCREF(psycoEncodings);
@@ -770,9 +729,8 @@ sqlstate_errors_init(PyObject *module)
     Dprintf("psycopgmodule: initializing sqlstate exceptions");
 
     if (sqlstate_errors) {
-        PyErr_SetString(PyExc_SystemError,
-            "sqlstate_errors_init(): already called");
-        goto exit;
+		Dprintf("sqlstate_errors_init(): already called");
+        return 0;
     }
     if (!(errmodule = PyImport_ImportModule("psycopg2.errors"))) {
         /* don't inject the exceptions into the errors module */
@@ -956,34 +914,6 @@ datetime_init(void)
     return 0;
 }
 
-RAISES_NEG static int
-mxdatetime_init(PyObject *module)
-{
-    Dprintf("psycopgmodule: initializing mx.DateTime module");
-
-#ifdef HAVE_MXDATETIME
-    Py_SET_TYPE(&mxdatetimeType, &PyType_Type);
-    if (0 > PyType_Ready(&mxdatetimeType)) { return -1; }
-
-    if (mxDateTime_ImportModuleAndAPI()) {
-        Dprintf("psycopgmodule: mx.DateTime module import failed");
-        PyErr_Clear();
-    }
-
-    /* If we can't find mx.DateTime objects at runtime,
-     * remove them from the module (and, as consequence, from the adapters). */
-    if (0 != psyco_adapter_mxdatetime_init()) {
-        PyObject *dict;
-        if (!(dict = PyModule_GetDict(module))) { return -1; }
-        if (0 > PyDict_DelItemString(dict, "DateFromMx")) { return -1; }
-        if (0 > PyDict_DelItemString(dict, "TimeFromMx")) { return -1; }
-        if (0 > PyDict_DelItemString(dict, "TimestampFromMx")) { return -1; }
-        if (0 > PyDict_DelItemString(dict, "IntervalFromMx")) { return -1; }
-    }
-#endif
-    return 0;
-}
-
 /** method table and module initialization **/
 
 static PyMethodDef psycopgMethods[] = {
@@ -1027,18 +957,6 @@ static PyMethodDef psycopgMethods[] = {
     {"IntervalFromPy",  (PyCFunction)psyco_IntervalFromPy,
      METH_VARARGS, psyco_IntervalFromPy_doc},
 
-#ifdef HAVE_MXDATETIME
-    /* to be deleted if not found at import time */
-    {"DateFromMx",  (PyCFunction)psyco_DateFromMx,
-     METH_VARARGS, psyco_DateFromMx_doc},
-    {"TimeFromMx",  (PyCFunction)psyco_TimeFromMx,
-     METH_VARARGS, psyco_TimeFromMx_doc},
-    {"TimestampFromMx",  (PyCFunction)psyco_TimestampFromMx,
-     METH_VARARGS, psyco_TimestampFromMx_doc},
-    {"IntervalFromMx",  (PyCFunction)psyco_IntervalFromMx,
-     METH_VARARGS, psyco_IntervalFromMx_doc},
-#endif
-
     {"set_wait_callback",  (PyCFunction)psyco_set_wait_callback,
      METH_O, psyco_set_wait_callback_doc},
     {"get_wait_callback",  (PyCFunction)psyco_get_wait_callback,
@@ -1049,7 +967,6 @@ static PyMethodDef psycopgMethods[] = {
     {NULL, NULL, 0, NULL}        /* Sentinel */
 };
 
-#if PY_3
 static struct PyModuleDef psycopgmodule = {
         PyModuleDef_HEAD_INIT,
         "_psycopg",
@@ -1061,7 +978,6 @@ static struct PyModuleDef psycopgmodule = {
         NULL,
         NULL
 };
-#endif
 
 #ifndef PyMODINIT_FUNC	/* declarations for DLL import/export */
 #define PyMODINIT_FUNC void
@@ -1095,17 +1011,12 @@ INIT_MODULE(_psycopg)(void)
     if (!(psyco_null = Bytes_FromString("NULL"))) { goto exit; }
 
     /* initialize the module */
-#if PY_2
-    module = Py_InitModule("_psycopg", psycopgMethods);
-#else
     module = PyModule_Create(&psycopgmodule);
-#endif
     if (!module) { goto exit; }
 
     if (0 > add_module_constants(module)) { goto exit; }
     if (0 > add_module_types(module)) { goto exit; }
     if (0 > datetime_init()) { goto exit; }
-    if (0 > mxdatetime_init(module)) { goto exit; }
     if (0 > encodings_init(module)) { goto exit; }
     if (0 > typecast_init(module)) { goto exit; }
     if (0 > adapters_init(module)) { goto exit; }
@@ -1115,9 +1026,5 @@ INIT_MODULE(_psycopg)(void)
     Dprintf("psycopgmodule: module initialization complete");
 
 exit:
-#if PY_3
     return module;
-#else
-    return;
-#endif
 }

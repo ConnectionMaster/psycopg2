@@ -1,10 +1,9 @@
 #!/usr/bin/env python
-# -*- coding: utf-8 -*-
 
 # test_async.py - unit test for asynchronous API
 #
 # Copyright (C) 2010-2019 Jan Urbański  <wulczer@wulczer.org>
-# Copyright (C) 2020 The Psycopg Team
+# Copyright (C) 2020-2021 The Psycopg Team
 #
 # psycopg2 is free software: you can redistribute it and/or modify it
 # under the terms of the GNU Lesser General Public License as published
@@ -37,7 +36,7 @@ from .testutils import (ConnectingTestCase, StringIO, skip_before_postgres,
     skip_if_crdb, crdb_version, slow)
 
 
-class PollableStub(object):
+class PollableStub:
     """A 'pollable' wrapper allowing analysis of the `poll()` calls."""
     def __init__(self, pollable):
         self.pollable = pollable

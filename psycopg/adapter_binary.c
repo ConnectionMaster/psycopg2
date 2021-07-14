@@ -1,7 +1,7 @@
 /* adapter_binary.c - Binary objects
  *
  * Copyright (C) 2003-2019 Federico Di Gregorio <fog@debian.org>
- * Copyright (C) 2020 The Psycopg Team
+ * Copyright (C) 2020-2021 The Psycopg Team
  *
  * This file is part of psycopg.
  *
@@ -75,15 +75,6 @@ binary_quote(binaryObject *self)
         buffer = (const char *)(view.buf);
         buffer_len = view.len;
     }
-
-#if PY_2
-    if (!buffer && (Bytes_Check(self->wrapped) || PyBuffer_Check(self->wrapped))) {
-        if (PyObject_AsReadBuffer(self->wrapped, (const void **)&buffer,
-                                  &buffer_len) < 0) {
-            goto exit;
-        }
-    }
-#endif
 
     if (!buffer) {
         goto exit;

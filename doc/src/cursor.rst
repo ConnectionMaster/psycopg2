@@ -124,7 +124,7 @@ The ``cursor`` class
     .. attribute:: name
 
         Read-only attribute containing the name of the cursor if it was
-        creates as named cursor by `connection.cursor()`, or `!None` if
+        created as named cursor by `connection.cursor()`, or `!None` if
         it is a client side cursor.  See :ref:`server-side-cursors`.
 
         .. extension::
@@ -231,6 +231,16 @@ The ``cursor`` class
 
         .. versionchanged:: 2.7
           added support for named arguments.
+
+        .. note::
+
+            `!callproc()` can only be used with PostgreSQL functions__, not
+            with the procedures__ introduced in PostgreSQL 11, which require
+            the :sql:`CALL` statement to run. Please use a normal
+            `execute()` to run them.
+
+            .. __: https://www.postgresql.org/docs/current/sql-createfunction.html
+            .. __: https://www.postgresql.org/docs/current/sql-createprocedure.html
 
     .. method:: mogrify(operation [, parameters])
 
@@ -498,8 +508,10 @@ The ``cursor`` class
 
         The time zone factory used to handle data types such as
         :sql:`TIMESTAMP WITH TIME ZONE`.  It should be a `~datetime.tzinfo`
-        object.  A few implementations are available in the `psycopg2.tz`
-        module.
+        object.  Default is `datetime.timezone`.
+
+        .. versionchanged:: 2.9
+            previosly the default factory was `psycopg2.tz.FixedOffsetTimezone`.
 
 
     .. method:: nextset()
@@ -550,13 +562,6 @@ The ``cursor`` class
             >>> cur.fetchall()
             [(6, 42, 'foo'), (7, 74, 'bar')]
 
-        .. note:: the name of the table is not quoted: if the table name
-            contains uppercase letters or special characters it must be quoted
-            with double quotes::
-
-                cur.copy_from(f, '"TABLE"')
-
-
         .. versionchanged:: 2.0.6
             added the *columns* parameter.
 
@@ -564,6 +569,11 @@ The ``cursor`` class
             data read from files implementing the `io.TextIOBase` interface
             are encoded in the connection `~connection.encoding` when sent to
             the backend.
+
+        .. versionchanged:: 2.9
+            the table and fields names are now quoted. If you need to specify
+            a schema-qualified table please use `copy_expert()`.
+
 
     .. method:: copy_to(file, table, sep='\\t', null='\\\\N', columns=None)
 
@@ -586,12 +596,6 @@ The ``cursor`` class
             2|\N|dada
             ...
 
-        .. note:: the name of the table is not quoted: if the table name
-            contains uppercase letters or special characters it must be quoted
-            with double quotes::
-
-                cur.copy_to(f, '"TABLE"')
-
         .. versionchanged:: 2.0.6
             added the *columns* parameter.
 
@@ -599,6 +603,10 @@ The ``cursor`` class
             data sent to files implementing the `io.TextIOBase` interface
             are decoded in the connection `~connection.encoding` when read
             from the backend.
+
+        .. versionchanged:: 2.9
+            the table and fields names are now quoted. If you need to specify
+            a schema-qualified table please use `copy_expert()`.
 
 
     .. method:: copy_expert(sql, file, size=8192)

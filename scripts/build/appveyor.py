@@ -45,9 +45,6 @@ def setup_build_env():
     """
     setenv('VS_VER', opt.vs_ver)
 
-    if opt.vs_ver == '10.0' and opt.arch_64:
-        setenv('DISTUTILS_USE_SDK', '1')
-
     path = [
         str(opt.py_dir),
         str(opt.py_dir / 'Scripts'),
@@ -57,22 +54,6 @@ def setup_build_env():
         os.environ['PATH'],
     ]
     setenv('PATH', os.pathsep.join(path))
-
-    if opt.vs_ver == '9.0':
-        logger.info("Fixing VS2008 Express and 64bit builds")
-        shutil.copyfile(
-            opt.vc_dir / "bin/vcvars64.bat",
-            opt.vc_dir / "bin/amd64/vcvarsamd64.bat",
-        )
-
-    # Fix problem with VS2010 Express 64bit missing vcvars64.bat
-    if opt.vs_ver == '10.0':
-        if not (opt.vc_dir / "bin/amd64/vcvars64.bat").exists():
-            logger.info("Fixing VS2010 Express and 64bit builds")
-            copy_file(
-                opt.package_dir / "scripts/vcvars64-vs2010.bat",
-                opt.vc_dir / "bin/amd64/vcvars64.bat",
-            )
 
     logger.info("Configuring compiler")
     bat_call([opt.vc_dir / "vcvarsall.bat", 'x86' if opt.arch_32 else 'amd64'])
@@ -340,14 +321,10 @@ def patch_package_name():
 
 
 def build_binary_packages():
-    """Create wheel/exe binary packages."""
+    """Create wheel binary packages."""
     os.chdir(opt.package_dir)
 
     add_pg_config_path()
-
-    # Build .exe packages for whom still use them
-    if opt.package_name == 'psycopg2':
-        run_python(['setup.py', 'bdist_wininst', "-d", opt.dist_dir])
 
     # Build .whl packages
     run_python(['setup.py', 'bdist_wheel', "-d", opt.dist_dir])
@@ -426,10 +403,7 @@ def check_libpq_version():
         .decode('ascii')
         .rstrip()
     )
-    assert want_ver == got_ver, "libpq version mismatch: %r != %r" % (
-        want_ver,
-        got_ver,
-    )
+    assert want_ver == got_ver, f"libpq version mismatch: {want_ver!r} != {got_ver!r}"
 
 
 def run_test_suite():
@@ -671,7 +645,7 @@ def which(name):
             if os.path.isfile(fn):
                 return fn
 
-    raise Exception("couldn't find program on path: %s" % name)
+    raise Exception(f"couldn't find program on path: {name}")
 
 
 class Options:
@@ -683,7 +657,7 @@ class Options:
     def py_ver(self):
         """The Python version to build as 2 digits string."""
         rv = os.environ['PY_VER']
-        assert rv in ('27', '36', '37', '38', '39'), rv
+        assert rv in ('36', '37', '38', '39'), rv
         return rv
 
     @property
@@ -721,13 +695,8 @@ class Options:
     @property
     def is_wheel(self):
         """Are we building the wheel packages or just the extension?"""
-        project_name = os.environ['APPVEYOR_PROJECT_NAME']
-        if project_name == 'psycopg2':
-            return False
-        elif project_name == 'psycopg2-wheels':
-            return True
-        else:
-            raise Exception(f"unexpected project name: {project_name}")
+        workflow = os.environ["WORKFLOW"]
+        return workflow == "packages"
 
     @property
     def py_dir(self):
@@ -753,7 +722,8 @@ class Options:
         """
         if self.vs_ver == '16.0':
             path = Path(
-                r"C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\VC\Auxiliary\Build"
+                r"C:\Program Files (x86)\Microsoft Visual Studio\2019"
+                r"\Community\VC\Auxiliary\Build"
             )
         else:
             path = Path(
@@ -766,11 +736,9 @@ class Options:
     def vs_ver(self):
         # https://wiki.python.org/moin/WindowsCompilers
         # https://www.appveyor.com/docs/windows-images-software/#python
-        # Py 2.7 = VS Ver. 9.0 (VS 2008)
         # Py 3.6--3.8 = VS Ver. 14.0 (VS 2015)
         # Py 3.9 = VS Ver. 16.0 (VS 2019)
         vsvers = {
-            '27': '9.0',
             '36': '14.0',
             '37': '14.0',
             '38': '14.0',
@@ -824,18 +792,13 @@ class Options:
 
     @property
     def package_dir(self):
-        """
-        The directory containing the psycopg code checkout dir.
-
-        Building psycopg it is clone_dir, building the wheels it is a submodule.
-        """
-        return self.clone_dir / 'psycopg2' if self.is_wheel else self.clone_dir
+        return self.clone_dir
 
     @property
     def dist_dir(self):
         """The directory where to build packages to distribute."""
         return (
-            self.package_dir / 'dist' / ('psycopg2-%s' % self.package_version)
+            self.package_dir / 'dist' / (f'psycopg2-{self.package_version}')
         )
 
 

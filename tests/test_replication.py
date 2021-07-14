@@ -3,7 +3,7 @@
 # test_replication.py - unit test for replication protocol
 #
 # Copyright (C) 2015-2019 Daniele Varrazzo  <daniele.varrazzo@gmail.com>
-# Copyright (C) 2020 The Psycopg Team
+# Copyright (C) 2020-2021 The Psycopg Team
 #
 # psycopg2 is free software: you can redistribute it and/or modify it
 # under the terms of the GNU Lesser General Public License as published
@@ -41,13 +41,13 @@ skip_repl_if_green = skip_if_green("replication not supported in green mode")
 
 class ReplicationTestCase(ConnectingTestCase):
     def setUp(self):
-        super(ReplicationTestCase, self).setUp()
+        super().setUp()
         self.slot = testconfig.repl_slot
         self._slots = []
 
     def tearDown(self):
         # first close all connections, as they might keep the slot(s) active
-        super(ReplicationTestCase, self).tearDown()
+        super().tearDown()
 
         time.sleep(0.025)  # sometimes the slot is still active, wait a little
 
@@ -244,9 +244,9 @@ class AsyncReplicationTest(ReplicationTestCase):
 
         def consume(msg):
             # just check the methods
-            "%s: %s" % (cur.io_timestamp, repr(msg))
-            "%s: %s" % (cur.feedback_timestamp, repr(msg))
-            "%s: %s" % (cur.wal_end, repr(msg))
+            f"{cur.io_timestamp}: {repr(msg)}"
+            f"{cur.feedback_timestamp}: {repr(msg)}"
+            f"{cur.wal_end}: {repr(msg)}"
 
             self.msg_count += 1
             if self.msg_count > 3:

@@ -1,7 +1,7 @@
 /* adapter_asis.c - adapt types as they are
  *
  * Copyright (C) 2003-2019 Federico Di Gregorio <fog@debian.org>
- * Copyright (C) 2020 The Psycopg Team
+ * Copyright (C) 2020-2021 The Psycopg Team
  *
  * This file is part of psycopg.
  *
@@ -45,14 +45,12 @@ asis_getquoted(asisObject *self, PyObject *args)
     }
     else {
         rv = PyObject_Str(self->wrapped);
-#if PY_3
-        /* unicode to bytes in Py3 */
+        /* unicode to bytes */
         if (rv) {
             PyObject *tmp = PyUnicode_AsUTF8String(rv);
             Py_DECREF(rv);
             rv = tmp;
         }
-#endif
     }
 
     return rv;
